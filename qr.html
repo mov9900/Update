@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Generate QR Code</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.24.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.24.0/firebase-auth-compat.js"></script>
+    <style>
+        body {
+            font-family: Arial;
+            padding: 20px;
+        }
+
+        input,
+        button {
+            display: block;
+            margin: 10px 0;
+            padding: 8px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>Your Library QR Code</h2>
+
+    <label for="name">Full Name</label>
+    <input type="text" id="name" placeholder="Amit Patel" required />
+
+    <label for="enrollment">Enrollment Number</label>
+    <input type="text" id="enrollment" placeholder="230140111024" required />
+
+    <label for="semester">Semester</label>
+    <input type="text" id="semester" placeholder="5" required />
+
+    <label for="year">Year</label>
+    <input type="text" id="department" placeholder="EC" required />
+
+    <button id="generateBtn">Generate QR</button>
+
+    <div id="qrcode" style="margin-top: 20px;"></div>
+
+    <!-- Firebase config and script -->
+    <script>
+        const user = { uid: "test-user-id" }; // 👈 Temporarily bypass login
+
+        // ✅ Replace with your Firebase project config
+        const firebaseConfig = {
+            apiKey: "AIzaSyA2-ZSnxGhMSbpxR9lWipQ-JX4s8Fz3j8Q",
+            authDomain: "librarymanagement-80741.firebaseapp.com",
+            projectId: "librarymanagement-80741",
+            storageBucket: "librarymanagement-80741.firebasestorage.app",
+            messagingSenderId: "7076696675",
+            appId: "1:7076696675:web:ff0f1965ca544627ab1e56"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+
+        // 🔐 Simulate user already logged in (for real apps, use actual login)
+        auth.onAuthStateChanged(user => {
+            if (!user) {
+                alert("Please log in first to generate your QR.");
+                window.location.href = "index.html"; // or wherever your login page is
+            }
+        });
+
+        // ✅ QR generation logic
+        document.getElementById('generateBtn').addEventListener('click', async () => {
+            const user = auth.currentUser;
+            if (!user) {
+                alert("Not logged in!");
+                return;
+            }
+
+            const name = document.getElementById('name').value.trim();
+            const enrollment = document.getElementById('enrollment').value.trim();
+            const semester = document.getElementById('semester').value.trim();
+            const department = document.getElementById('department').value.trim();
+
+            if (!name || !enrollment || !semester || !department) {
+                alert("Please fill all fields.");
+                return;
+            }
+
+            const qrData = {
+                uid: user.uid,
+                enrollment,
+                name,
+                semester,
+                department
+            };
+
+            const qrString = JSON.stringify(qrData);
+
+            // Clear existing QR if any
+            document.getElementById('qrcode').innerHTML = "";
+
+            // Generate new QR
+            new QRCode(document.getElementById('qrcode'), {
+                text: qrString,
+                width: 220,
+                height: 220
+            });
+        });
+    </script>
+</body>
+
+</html>
