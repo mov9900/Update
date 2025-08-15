@@ -1,14 +1,14 @@
 // Import Firebase functions
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js";
-import { 
-    getFirestore, 
-    doc, 
-    getDoc, 
-    collection, 
-    query, 
-    where, 
-    onSnapshot 
+import {
+    getFirestore,
+    doc,
+    getDoc,
+    collection,
+    query,
+    where,
+    onSnapshot
 } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
 
 // Firebase config
@@ -33,83 +33,86 @@ const qrModalOverlay = document.getElementById('qrModalOverlay');
 const closeQrModal = document.getElementById('closeQrModal');
 const qrCodeContainer = document.getElementById('userQrCode');
 
-// Fetch user data from Firestore (v9 syntax)
+// Utility: Fetch user data from Firestore (v9 syntax)
 async function fetchUserData(uid) {
+    if (!uid) return null;
     try {
         const userRef = doc(db, "users", uid);
         const userSnap = await getDoc(userRef);
-
-        if (userSnap.exists()) {
-            return userSnap.data();
-        } else {
-            console.error("No such user found!");
-            return null;
-        }
+        return userSnap.exists() ? userSnap.data() : null;
     } catch (error) {
         console.error("Error fetching user:", error);
         return null;
     }
 }
 
-// Open modal and generate QR code
+// Utility: Open modal and generate QR code
 async function openQrModal(uid) {
+    if (!uid) return;
     const userData = await fetchUserData(uid);
-    if (!userData) return;
-
+    if (!userData) {
+        alert("Failed to load user data for QR code.");
+        return;
+    }
     qrCodeContainer.innerHTML = ""; // clear old QR
-
     // Generate QR with JSON data
     new QRCode(qrCodeContainer, {
         text: JSON.stringify(userData),
         width: 180,
         height: 180
     });
-
     qrModal.classList.remove('hidden');
 }
 
-// Track auth state and attach events
-onAuthStateChanged(auth, (user) => {
-    if (user) {
-        console.log("Logged in UID:", user.uid);
-
-        // Borrowed books listener
-        const borrowedRef = query(collection(db, "borrowedBooks"), where("userId", "==", user.uid));
-        onSnapshot(borrowedRef, (snapshot) => {
-            let borrowedCount = 0;
-            let dueSoonCount = 0;
-            let overdueCount = 0;
-
-            const today = new Date();
-            const dueSoonThreshold = new Date();
-            dueSoonThreshold.setDate(today.getDate() + 3);
-
-            snapshot.forEach(docSnap => {
-                borrowedCount++;
-                const data = docSnap.data();
-                if (data.dueDate) {
-                    const dueDate = new Date(data.dueDate);
-                    if (dueDate < today) {
-                        overdueCount++;
-                    } else if (dueDate <= dueSoonThreshold) {
-                        dueSoonCount++;
-                    }
-                }
-            });
-
-            document.getElementById("booksBorrowedCount").textContent = borrowedCount;
-            document.getElementById("booksDueSoonCount").textContent = dueSoonCount;
-            document.getElementById("overdueBooksCount").textContent = overdueCount;
-        });
-
-        // QR button event
-        qrScannerBtn.addEventListener('click', () => openQrModal(user.uid));
-
-    } else {
-        window.location.href = "index.html";
-    }
-});
-
-// Close modal
+// Always set up close listeners once!
 closeQrModal.addEventListener('click', () => qrModal.classList.add('hidden'));
 qrModalOverlay.addEventListener('click', () => qrModal.classList.add('hidden'));
+
+// Central auth state handling
+let currentUser = null;
+onAuthStateChanged(auth, (user) => {
+    if (!user) {
+        // If not logged in, redirect immediately
+        window.location.href = "index.html";
+        return;
+    }
+    currentUser = user;
+    console.log("Logged in UID:", user.uid);
+
+    // Borrowed books listener (update stats panel)
+    const borrowedRef = query(
+        collection(db, "borrowedBooks"),
+        where("userId", "==", user.uid)
+    );
+    onSnapshot(borrowedRef, (snapshot) => {
+        let borrowedCount = 0;
+        let dueSoonCount = 0;
+        let overdueCount = 0;
+        const today = new Date();
+        const dueSoonThreshold = new Date();
+        dueSoonThreshold.setDate(today.getDate() + 3);
+
+        snapshot.forEach(docSnap => {
+            borrowedCount++;
+            const data = docSnap.data();
+            if (data.dueDate) {
+                const dueDate = new Date(data.dueDate);
+                if (dueDate < today) overdueCount++;
+                else if (dueDate <= dueSoonThreshold) dueSoonCount++;
+            }
+        });
+
+        document.getElementById("booksBorrowedCount").textContent = borrowedCount;
+        document.getElementById("booksDueSoonCount").textContent = dueSoonCount;
+        document.getElementById("overdueBooksCount").textContent = overdueCount;
+    });
+});
+
+// QR button event listener—outside auth observer, to avoid duplicate events
+qrScannerBtn.addEventListener('click', () => {
+    if (!currentUser) {
+        window.location.href = "index.html";
+        return;
+    }
+    openQrModal(currentUser.uid);
+});
